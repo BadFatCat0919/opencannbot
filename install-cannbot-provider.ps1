@@ -1,9 +1,14 @@
-#Requires -Version 5.1
 <#
 .SYNOPSIS
   Install the CANNBOT provider plugin for OpenCode on Windows.
+.DESCRIPTION
+  Safe to run either from a local clone (.\install-cannbot-provider.ps1)
+  or piped from the web (irm <url> | iex).
 #>
 $ErrorActionPreference = 'Stop'
+
+# Windows PowerShell 5.1 defaults to TLS 1.0/1.1, which GitHub rejects; force 1.2.
+try { [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12 } catch {}
 
 $RepoRaw   = if ($env:CANNBOT_REPO_RAW) { $env:CANNBOT_REPO_RAW } else { 'https://raw.githubusercontent.com/BadFatCat0919/opencannbot/main' }
 $PluginUrl = "$RepoRaw/cannbot-auth.js"
@@ -24,22 +29,26 @@ Write-Bold "  CANNBOT Provider for OpenCode"
 Write-Bold "======================================="
 Write-Host ""
 
+# Use `return` not `exit`: when piped via `irm | iex`, `exit` would close the
+# user's whole PowerShell window.
 if (-not (Get-Command opencode -ErrorAction SilentlyContinue)) {
   Write-Red "opencode not found. Please install opencode first."
-  exit 1
+  return
 }
 if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
   Write-Red "node not found."
-  exit 1
+  return
 }
 
 New-Item -ItemType Directory -Force -Path $PluginDir, $DataDir | Out-Null
 
 # ── 1. Get plugin ───────────────────────────────────────────────────────
 # The repo's cannbot-auth.js is the single source of truth.
+# $PSScriptRoot is empty when run via `irm | iex`; in that case skip the local
+# copy and download. (Join-Path rejects an empty Path, so guard before calling it.)
 
-$LocalPlugin = Join-Path $PSScriptRoot 'cannbot-auth.js'
-if (Test-Path $LocalPlugin) {
+$LocalPlugin = if ($PSScriptRoot) { Join-Path $PSScriptRoot 'cannbot-auth.js' } else { $null }
+if ($LocalPlugin -and (Test-Path $LocalPlugin)) {
   Copy-Item $LocalPlugin $PluginFile -Force
   Write-Green "[1/2] Plugin copied from local clone -> $PluginFile"
 } else {
