@@ -43,6 +43,20 @@ Windows（PowerShell）：
 irm https://raw.githubusercontent.com/BadFatCat0919/opencannbot/main/install-cannbot-provider.ps1 | iex
 ```
 
+**国内加速（GitHub 代理）：** 若直连 `raw.githubusercontent.com` 超时，用 GitHub 镜像前缀代替上面的命令。镜像前缀同时套在「脚本地址」和 `CANNBOT_REPO_RAW` 上（前者下载脚本本身，后者让脚本内部下载插件也走镜像）。以 `gh-proxy.com` 为例（也可换成 `ghfast.top`、`ghproxy.net` 等）：
+
+macOS / Linux：
+
+```bash
+B="https://gh-proxy.com/https://raw.githubusercontent.com/BadFatCat0919/opencannbot/main"; curl -fsSL "$B/install-cannbot-provider.sh" | CANNBOT_REPO_RAW="$B" bash
+```
+
+Windows（PowerShell）：
+
+```powershell
+$B="https://gh-proxy.com/https://raw.githubusercontent.com/BadFatCat0919/opencannbot/main"; $env:CANNBOT_REPO_RAW=$B; irm "$B/install-cannbot-provider.ps1" | iex
+```
+
 脚本只负责注册 provider，安装完成后重启 opencode，在 opencode 中输入 `/connect`，输入 **CANNBOT** 并填入你的 Virtual Key (VK)。
 
 ### 工作原理
@@ -83,6 +97,20 @@ Windows（PowerShell）：
 
 ```powershell
 irm https://raw.githubusercontent.com/BadFatCat0919/opencannbot/main/install-cannbot-trae.ps1 | iex
+```
+
+**国内加速（GitHub 代理）：** 若直连 `raw.githubusercontent.com` 超时，用 GitHub 镜像前缀代替上面的命令（镜像前缀同时套在「脚本地址」和 `CANNBOT_REPO_RAW` 上，后者让脚本内部下载 `cannbot-proxy.py` 也走镜像）。以 `gh-proxy.com` 为例：
+
+macOS / Linux：
+
+```bash
+B="https://gh-proxy.com/https://raw.githubusercontent.com/BadFatCat0919/opencannbot/main"; curl -fsSL "$B/install-cannbot-trae.sh" | CANNBOT_REPO_RAW="$B" bash
+```
+
+Windows（PowerShell）：
+
+```powershell
+$B="https://gh-proxy.com/https://raw.githubusercontent.com/BadFatCat0919/opencannbot/main"; $env:CANNBOT_REPO_RAW=$B; irm "$B/install-cannbot-trae.ps1" | iex
 ```
 
 安装脚本会：

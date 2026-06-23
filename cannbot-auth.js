@@ -13,7 +13,6 @@ const AUTHENTICATE_URL = "https://cannbot.hicann.cn/cannbot/api/auth/authenticat
 const CANNBOT_DIR = join(homedir(), ".cannbot");
 const JWT_CACHE_PATH = join(CANNBOT_DIR, "jwt.json");
 const MODELS_CACHE_PATH = join(CANNBOT_DIR, "models-cache.json");
-const MODELS_CACHE_TTL_MS = 24 * 3600 * 1000; // refresh in background once a day
 const MODELS_FETCH_TIMEOUT_MS = 1500; // never block startup on a slow network
 
 // opencode's data dir; respects XDG_DATA_HOME on every platform (incl. Windows).
@@ -205,11 +204,9 @@ function loadModelsFast() {
   return buildModels();
 }
 
-// Fire-and-forget: refresh the on-disk cache so the next startup sees fresh models.
+// Fire-and-forget: refresh the on-disk cache on every startup so the next launch sees fresh models.
 async function refreshModelsCache() {
   try {
-    const cache = readModelsCache();
-    if (cache && Date.now() - (cache.ts || 0) < MODELS_CACHE_TTL_MS) return; // still fresh
     const apiModels = await fetchModelsFromAPI();
     if (apiModels && apiModels.length > 0) {
       writeModelsCache(modelsFromApiList(apiModels));
