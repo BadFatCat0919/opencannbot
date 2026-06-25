@@ -1,6 +1,6 @@
-# OpenCANNBot — CANNBOT Provider for OpenCode / Trae
+# OpenCANNBot — CANNBOT Provider for OpenCode / Trae / VS Code
 
-一键为 [OpenCode](https://opencode.ai) 和 [Trae IDE](https://www.trae.ai) 添加 CANNBOT Provider，无需安装 cannbot CLI。
+一键为 [OpenCode](https://opencode.ai)、[Trae IDE](https://www.trae.ai) 和 [VS Code Copilot Chat](https://code.visualstudio.com/docs/copilot/overview) 添加 CANNBOT Provider，无需安装 cannbot CLI。
 
 ## 目录
 
@@ -15,6 +15,11 @@
   - [验证](#验证)
   - [卸载](#卸载)
   - [常见问题](#常见问题)
+- [VS Code Copilot Chat 接入](#vs-code-copilot-chat-接入)
+  - [安装](#安装)
+  - [用法](#用法)
+  - [模型](#模型)
+  - [构建](#构建)
 - [仓库结构](#仓库结构)
 - [许可](#许可)
 
@@ -217,9 +222,53 @@ A: **不要**。代理没有鉴权，VK/JWT 都是明文。本地环回（`127.0
 A: 可以。代理是纯 HTTP 透传，不会缓冲 SSE chunk，OpenAI 风格 `data: ...\n\n` 流照常工作。
 
 **Q: 跟 OpenCode 插件会冲突吗？**
-A: 不会。两者独立：OpenCode 插件（`cannbot-auth.js`）只注入 opencode 的请求；本代理只监听 `127.0.0.1:8765`，处理 Trae 的请求。同一台机器可以同时装两份。
+A: 不会。三者独立：OpenCode 插件（`cannbot-auth.js`）只注入 opencode 的请求；代理只监听 `127.0.0.1:8765`，处理 Trae 的请求；VS Code 扩展注册为独立语言模型提供商。同一台机器可以同时装三份。
 
 ---
+
+## VS Code Copilot Chat 接入
+
+`cannbot-vscode` 扩展把 CANNBot 模型直接注册到 **GitHub Copilot Chat 的模型选择器**中，
+和 GPT-4o、Claude 并列显示。与 [deepseek-v4-for-copilot](https://github.com/Vizards/deepseek-v4-for-copilot) 架构相同。
+
+Agent 模式、工具调用、Skills 等全部 Copilot Chat 能力开箱即用，无需学习新界面。
+
+### 安装
+
+**从 VSIX 安装：**
+
+```bash
+cd cannbot-vscode && npm install && npm run compile && npx vsce package
+code --install-extension cannbot-vscode-*.vsix
+```
+
+### 用法
+
+1. `Ctrl+Shift+P` → **`CANNBot: Set Virtual Key (VK)`** → 输入你的 VK
+2. 打开 Copilot Chat（`Ctrl+Shift+I`），点击模型下拉菜单
+3. 选择 **GLM 5.2** / **Qwen 3.7 Max** 等任意 CANNBot 模型
+4. 正常聊天
+
+VK 存储在 VS Code 的 `SecretStorage`（操作系统密钥链），不会出现在 `settings.json` 中。
+
+### 模型
+
+| 模型 | Context | Max Output |
+|------|---------|------------|
+| GLM 5.2 | 1M | 131,072 |
+| GLM 5.1 | 202K | 131,072 |
+| GLM 5 | 170K | 131,072 |
+| Qwen 3.7 Max | 1M | 65,535 |
+| Qwen 3.6 Plus | 1M | 65,535 |
+
+### 构建
+
+```bash
+cd cannbot-vscode
+npm install       # 安装依赖
+npm run compile   # 编译 TypeScript
+npm run package   # 打包 .vsix
+```
 
 ## 仓库结构
 
@@ -227,9 +276,10 @@ A: 不会。两者独立：OpenCode 插件（`cannbot-auth.js`）只注入 openc
 |------|------|
 | `cannbot-auth.js` | OpenCode 插件：在 opencode 内部完成 VK→JWT 兑换 + 注入双 header |
 | `install-cannbot-provider.sh` / `.ps1` | 一键把 `cannbot-auth.js` 装进 opencode |
-| `cannbot-proxy.py` | **新增**：本地 HTTP 代理，让 Trae IDE 也能走 CANNBOT 网关 |
-| `install-cannbot-trae.sh` / `.ps1` | **新增**：一键安装 Trae 代理（macOS/Linux/Windows 三个平台） |
-| `uninstall-cannbot-trae.sh` | **新增**：卸载 Trae 代理 |
+| `cannbot-proxy.py` | 本地 HTTP 代理，让 Trae IDE / Continue 也能走 CANNBOT 网关 |
+| `install-cannbot-trae.sh` / `.ps1` | 一键安装 Trae 代理（macOS/Linux/Windows 三个平台） |
+| `uninstall-cannbot-trae.sh` | 卸载 Trae 代理 |
+| `cannbot-vscode/` | **新增**：VS Code 扩展，CANNBot 模型直接出现在 Copilot Chat 模型选择器 |
 
 ## 许可
 
