@@ -140,14 +140,16 @@ CANNBOT_VK="vk-xxxxxxxxxxxxxxxxxxxx" python3 /tmp/cannbot-proxy.py
 
 前台运行参数（也支持 CLI flags 覆盖环境变量）：
 
-| Flag           | Env 变量               | 默认值         | 说明 |
-|----------------|------------------------|----------------|------|
-| `--vk`         | `CANNBOT_VK`           | （必填）       | 你的 Virtual Key |
-| `--port`       | `CANNBOT_PROXY_PORT`   | `8765`         | 监听端口 |
-| `--host`       | `CANNBOT_PROXY_HOST`   | `127.0.0.1`    | 监听地址（请勿暴露到公网） |
-| `--log-level`  | `CANNBOT_LOG_LEVEL`    | `INFO`         | `DEBUG` / `INFO` / `WARNING` / `ERROR` |
-| `--log`        | —                      | —              | 把日志同时写到指定文件 |
-| `--daemon`     | —                      | —              | fork 到后台，并把 PID 写到 `~/.cannbot/proxy/proxy.pid`（仅 POSIX） |
+| Flag           | Env 变量                 | 默认值         | 说明 |
+|----------------|--------------------------|----------------|------|
+| `--vk`         | `CANNBOT_VK`             | （必填）       | 你的 Virtual Key |
+| `--port`       | `CANNBOT_PROXY_PORT`     | `8765`         | 监听端口 |
+| `--host`       | `CANNBOT_PROXY_HOST`     | `127.0.0.1`    | 监听地址（请勿暴露到公网） |
+| `--log-level`  | `CANNBOT_LOG_LEVEL`      | `INFO`         | `DEBUG` / `INFO` / `WARNING` / `ERROR` |
+| `--log`        | —                        | —              | 把日志同时写到指定文件 |
+| `--daemon`     | —                        | —              | fork 到后台，并把 PID 写到 `~/.cannbot/proxy/proxy.pid`（仅 POSIX） |
+| —              | `CANNBOT_KEEPALIVE_IDLE` | `300`          | 无数据最大等待秒数；只要在此时间内有 chunk 返回就不会超时 |
+| —              | `CANNBOT_SOCKET_TIMEOUT` | `30`           | 单次 socket 读超时；超时后检查保活窗口，未超则继续等待 |
 
 如果懒得每次设置环境变量，也可以把 VK 写进 `~/.cannbot/vk`（chmod 0600），代理启动时会自动读取。
 
@@ -219,7 +221,7 @@ A:
 A: **不要**。代理没有鉴权，VK/JWT 都是明文。本地环回（`127.0.0.1`）是唯一安全的使用方式。
 
 **Q: 流式输出（streaming）能工作吗？**
-A: 可以。代理是纯 HTTP 透传，不会缓冲 SSE chunk，OpenAI 风格 `data: ...\n\n` 流照常工作。
+A: 可以。代理使用 `http.client` 逐 chunk 流式转发（`read1(8192)`），不缓冲完整响应。同时内置 **keepalive 机制**：单次 socket 读超时（默认 30s）不会中断请求，只有连续 `CANNBOT_KEEPALIVE_IDLE`（默认 300s）无数据才会真正超时。适合 AI 推理等首字节延迟较长的场景。
 
 **Q: 跟 OpenCode 插件会冲突吗？**
 A: 不会。三者独立：OpenCode 插件（`cannbot-auth.js`）只注入 opencode 的请求；代理只监听 `127.0.0.1:8765`，处理 Trae 的请求；VS Code 扩展注册为独立语言模型提供商。同一台机器可以同时装三份。

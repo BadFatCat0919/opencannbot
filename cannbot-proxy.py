@@ -21,122 +21,62 @@ The JWT is obtained by exchanging a Virtual Key (VK) at::
     Headers: x-api-vkey: <vk>, Content-Type: application/json
     Body:    {"type": "cli", "mac": "<host-mac>"}
 
-This small proxy bridges that gap: it accepts a request from Trae exactly as
-Trae would send it, then injects the missing ``x-api-vkey`` header and rewrites
-the bearer token to a fresh JWT (refreshing the cached JWT transparently when
-it is about to expire).
+This proxy bridges that gap: it accepts a request from Trae exactly as Trae
+would send it, then injects the missing ``x-api-vkey`` header and rewrites
+the bearer token to a fresh JWT (refreshing the cached JWT transparently
+when it is about to expire).
 
-Features
---------
-* Zero third-party dependencies — standard library only.
-* VK -> JWT exchange with in-process caching (refresh 60s before expiry).
-* Three "auth modes" auto-detected from Trae's ``Authorization`` header:
-  - Trae sends ``Bearer vk-xxxx``  -> proxy exchanges VK to JWT.
-  - Trae sends ``Bearer <jwt>``    -> proxy keeps JWT, uses config VK for
-    ``x-api-vkey`` (handy for testing with a known-good JWT).
-  - Trae sends nothing             -> proxy falls back to ``CANNBOT_VK`` env var.
-* Streaming-friendly (the proxy is a simple HTTP pass-through; it does not
-  buffer SSE chunks, so OpenAI-style streaming responses work as-is).
-* Health check endpoint at ``GET /_health`` for local monitoring.
-* Honours ``CANNBOT_VK``, ``CANNBOT_PROXY_PORT``, ``CANNBOT_PROXY_HOST`` and
-  ``CANNBOT_LOG_LEVEL`` environment variables.
-
-Requirements
+Key features
 ------------
-* Python 3.8+ (uses ``urllib.request``, ``http.server``, ``dataclasses``).
-* Network access to ``https://cannbot.hicann.cn``.
+* Zero third-party dependencies — standard library only.
+* VK -> JWT exchange with thread-safe in-process caching (refresh 60s
+  before expiry).
+* **Keepalive streaming**: long-running AI responses are streamed chunk by
+  chunk; each successful read resets the idle timer, so a single socket
+  timeout does NOT abort the request. Only ``KEEPALIVE_IDLE_TIMEOUT`` seconds
+  of total silence triggers a real timeout.
+* Transient-connection retry (up to 2 retries with backoff on
+  ``ConnectionResetError`` / ``ConnectionAbortedError``).
+* Health check endpoint at ``GET /_health``.
+* Three auth modes auto-detected from Trae's ``Authorization`` header.
+* Graceful shutdown on SIGINT / SIGTERM.
+* Local-only by default (``127.0.0.1``).
 
-Install
--------
-The companion installer ``install-cannbot-trae.sh`` does everything for you:
-it downloads this script to ``~/.cannbot/proxy/cannbot-proxy.py`` and writes
-a ``com.cannbot.proxy.plist`` for macOS ``launchd`` (or a systemd user unit
-on Linux) so the proxy starts on login.
-
-Manual install::
-
-    mkdir -p ~/.cannbot/proxy
-    curl -fsSL https://raw.githubusercontent.com/BadFatCat0919/opencannbot/main/cannbot-proxy.py \\
-        -o ~/.cannbot/proxy/cannbot-proxy.py
-    chmod +x ~/.cannbot/proxy/cannbot-proxy.py
-
-Run interactively (foreground, Ctrl-C to stop)::
+Usage
+-----
+Run interactively::
 
     export CANNBOT_VK="vk-xxxxxxxxxxxxxxxxxxxx"
-    python3 ~/.cannbot/proxy/cannbot-proxy.py
+    python3 cannbot-proxy.py
 
-Run as a background daemon (preferred)::
+Run as a daemon::
 
-    ~/.cannbot/proxy/cannbot-proxy.py --daemon \\
+    python3 cannbot-proxy.py --daemon \\
         --vk "vk-xxxxxxxxxxxxxxxxxxxx" \\
         --port 8765 \\
-        --log ~/.cannbot/proxy/proxy.log
+        --log /tmp/cannbot_proxy.log
 
-Configure Trae
---------------
-1. Open Trae IDE.
-2. Go to Settings -> AI -> Model Provider -> "Add Provider" (custom).
-3. Set **API Base URL** to ``http://127.0.0.1:8765/v1``.
-4. Set **API Key** to your Virtual Key (``vk-xxxxxx``).  The proxy will
-   exchange it for a JWT on first request and cache the result.
-5. (Optional) Set **Model** to one of the CANNBOT model IDs, e.g.
-   ``glm-5.1`` or ``qwen3.7-max``.  Trae discovers models via the
-   ``/v1/models`` endpoint, which this proxy also forwards.
-
-Verify
-------
-After starting the proxy and configuring Trae::
-
-    curl -sS http://127.0.0.1:8765/_health
-    # -> {"status": "ok", "vk": "vk-xxxx", "jwt_expires_in": 3540}
-
-    curl -sS http://127.0.0.1:8765/v1/models \\
-        -H "Authorization: Bearer vk-xxxx"
-    # -> upstream model list, JSON
+Then in Trae, set:
+  * API Base URL -> http://127.0.0.1:8765/v1
+  * API Key      -> your VK (e.g. vk-xxxxx)
 
 Configuration
 -------------
 Environment variables (all optional except ``CANNBOT_VK``):
 
-``CANNBOT_VK``
-    Your Virtual Key, e.g. ``vk-xxxxxxxxxxxxxxxxxxxx``.  If unset, the VK
-    *must* be supplied per-request by Trae (or via ``--vk`` / ``~/.cannbot/vk``).
+``CANNBOT_VK``              Your Virtual Key.
+``CANNBOT_PROXY_PORT``      Listen port (default 8765).
+``CANNBOT_PROXY_HOST``      Bind address (default 127.0.0.1).
+``CANNBOT_KEEPALIVE_IDLE``  Max idle seconds before timeout (default 300).
+``CANNBOT_SOCKET_TIMEOUT``  Per-read socket timeout (default 30).
+``CANNBOT_LOG_LEVEL``       DEBUG / INFO / WARNING / ERROR (default INFO).
 
-``CANNBOT_PROXY_PORT``
-    TCP port to listen on (default ``8765``).
-
-``CANNBOT_PROXY_HOST``
-    Bind address (default ``127.0.0.1``; set to ``0.0.0.0`` only on trusted
-    networks — the proxy has no built-in auth beyond the upstream VK).
-
-``CANNBOT_LOG_LEVEL``
-    One of ``DEBUG``, ``INFO``, ``WARNING``, ``ERROR`` (default ``INFO``).
-
-CLI flags override env vars:
-
-``--vk VK``           same as ``CANNBOT_VK``
-``--port PORT``       same as ``CANNBOT_PROXY_PORT``
-``--host HOST``       same as ``CANNBOT_PROXY_HOST``
-``--log-level LVL``   same as ``CANNBOT_LOG_LEVEL``
-``--log FILE``        also tee log lines to FILE (used by the daemon mode)
-``--daemon``          fork into background and write PID to
-                      ``~/.cannbot/proxy/proxy.pid`` (POSIX only)
-
-Security notes
---------------
-* The proxy is **local-only by default** (``127.0.0.1``).  Do not expose it
-  to the public internet — there is no auth and your VK/JWT are sensitive.
-* Logs are written to stdout (and optionally a file).  JWTs are logged in
-  truncated form (first 20 chars) only at ``DEBUG`` level.
-* The proxy will refuse to start if the configured VK is missing and no VK
-  is supplied per-request.
-
-License
--------
-MIT — same as the parent ``opencannbot`` project.
+CLI flags override env vars: ``--vk``, ``--port``, ``--host``,
+``--log-level``, ``--log``, ``--daemon``.
 """
 
 import argparse
+import http.client
 import json
 import logging
 import os
@@ -145,20 +85,23 @@ import socket
 import sys
 import threading
 import time
-from dataclasses import dataclass
+import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Optional, Tuple
 from urllib.error import HTTPError, URLError
+from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 
-# ── Defaults (overridable via env / CLI) ────────────────────────────────
+# ── Defaults ───────────────────────────────────────────────────────────
 GATEWAY_URL = "https://cannbot.hicann.cn/gateway/compatible-mode/v1"
 AUTH_URL = "https://cannbot.hicann.cn/cannbot/api/auth/authenticate"
 DEFAULT_PORT = 8765
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_LOG_LEVEL = "INFO"
+DEFAULT_KEEPALIVE_IDLE = 300
+DEFAULT_SOCKET_TIMEOUT = 30
 
-# ── Logging setup ───────────────────────────────────────────────────────
+# ── Logging ─────────────────────────────────────────────────────────────
 log = logging.getLogger("cannbot-proxy")
 
 
@@ -171,63 +114,28 @@ def _setup_logging(level: str) -> None:
 
 
 # ── JWT cache (process-wide, thread-safe) ───────────────────────────────
-@dataclass
-class JwtCache:
-    access: Optional[str] = None
-    expires_at: float = 0.0  # unix seconds
-    lock: threading.Lock = threading.Lock()
-
-    def is_valid(self) -> bool:
-        return bool(self.access) and self.expires_at > time.time() + 60
-
-    def get(self) -> Optional[str]:
-        if self.is_valid():
-            return self.access
-        return None
-
-    def put(self, access: str, expires_in: int) -> None:
-        # Clamp to a sane range; default to 1h if upstream gives garbage.
-        if not isinstance(expires_in, (int, float)) or expires_in <= 0:
-            expires_in = 3600
-        self.access = access
-        self.expires_at = time.time() + expires_in - 60  # refresh 60s early
+_cached_jwt: Optional[str] = None
+_cached_jwt_exp: float = 0.0
+_jwt_lock = threading.Lock()
 
 
-_jwt = JwtCache()
-
-
-# ── Helpers ─────────────────────────────────────────────────────────────
-def get_mac() -> str:
-    """Return a non-zero MAC address from ``networkInterfaces`` if possible.
-
-    Falls back to the all-zero address used by the upstream ``cli`` type
-    auth (the gateway treats it the same as a real MAC for the ``cli``
-    auth type, so this is safe).
-    """
-    try:
-        import uuid
-        # uuid.getnode() is the most portable: it parses /sys/class/net on
-        # Linux, uses IORegistry on macOS, and falls back to a random
-        # 48-bit value if all else fails.
-        mac_int = uuid.getnode()
-        if (mac_int >> 40) % 2 == 0:  # least-significant bit of first octet
-            return ":".join(f"{(mac_int >> i) & 0xff:02x}" for i in (40, 32, 24, 16, 8, 0))
-    except Exception as e:  # pragma: no cover
-        log.debug("get_mac() failed: %s", e)
-    return "00:00:00:00:00:00"
+def _jwt_is_valid() -> bool:
+    return bool(_cached_jwt) and _cached_jwt_exp > time.time() + 60
 
 
 def exchange_vk_for_jwt(vk: str) -> Optional[str]:
     """Exchange a Virtual Key for a JWT access token (with caching)."""
+    global _cached_jwt, _cached_jwt_exp
+
     if not vk:
         log.error("Cannot exchange empty VK")
         return None
 
-    with _jwt.lock:
-        cached = _jwt.get()
-        if cached:
-            log.debug("Using cached JWT (expires in %ds)", int(_jwt.expires_at - time.time()))
-            return cached
+    with _jwt_lock:
+        if _jwt_is_valid():
+            log.debug("Using cached JWT (expires in %ds)",
+                      int(_cached_jwt_exp - time.time()))
+            return _cached_jwt
 
         log.info("Exchanging VK for JWT...")
         body = json.dumps({"type": "cli", "mac": get_mac()}).encode("utf-8")
@@ -236,17 +144,19 @@ def exchange_vk_for_jwt(vk: str) -> Optional[str]:
         req.add_header("x-api-vkey", vk)
         try:
             with urlopen(req, timeout=10) as resp:
-                payload = json.loads(resp.read().decode("utf-8"))
-            access = payload.get("accessToken") or payload.get("access_token")
-            expires_in = payload.get("expiresIn") or payload.get("expires_in") or 3600
+                result = json.loads(resp.read().decode("utf-8"))
+            access = result.get("accessToken") or result.get("access_token")
+            expires_in = result.get("expiresIn") or result.get("expires_in") or 3600
             if not access:
-                log.error("Auth response missing accessToken: %s", payload)
+                log.error("Auth response missing accessToken: %s", result)
                 return None
-            _jwt.put(access, int(expires_in))
+            _cached_jwt = access
+            _cached_jwt_exp = time.time() + int(expires_in) - 60
             log.info("JWT obtained, expires in %ds", int(expires_in))
             return access
         except HTTPError as e:
-            log.error("VK->JWT exchange HTTP %d: %s", e.code, e.read().decode("utf-8", "replace"))
+            log.error("VK->JWT exchange HTTP %d: %s",
+                      e.code, e.read().decode("utf-8", "replace"))
             return None
         except URLError as e:
             log.error("VK->JWT exchange network error: %s", e.reason)
@@ -256,132 +166,55 @@ def exchange_vk_for_jwt(vk: str) -> Optional[str]:
             return None
 
 
-def is_vk(key: str) -> bool:
-    """Return True if ``key`` looks like a Virtual Key (``vk-...``)."""
+def get_mac() -> str:
+    """Return a non-zero MAC address if possible, else all-zeros placeholder.
+
+    Uses ``uuid.getnode()`` which is portable across macOS / Linux / Windows
+    and falls back to a random 48-bit value if no real MAC is found.
+    """
+    try:
+        mac_int = uuid.getnode()
+        if (mac_int >> 40) % 2 == 0:  # not a random addr
+            return ":".join(
+                f"{(mac_int >> i) & 0xff:02x}" for i in (40, 32, 24, 16, 8, 0)
+            )
+    except Exception as e:
+        log.debug("get_mac() failed: %s", e)
+    return "00:00:00:00:00:00"
+
+
+def is_vk(key: Optional[str]) -> bool:
+    """Return True if *key* looks like a Virtual Key (``vk-...``)."""
     return bool(key) and key.startswith("vk-")
 
 
-# ── HTTP server ─────────────────────────────────────────────────────────
+# ── HTTP handler ─────────────────────────────────────────────────────────
 class ProxyHandler(BaseHTTPRequestHandler):
-    """HTTP proxy that injects the CANNBOT auth headers Trae cannot send."""
+    """HTTP proxy that injects CANNBOT auth headers with keepalive streaming."""
 
     server_version = "CANNBOTProxy/1.0"
 
-    # Silence the default BaseHTTPRequestHandler "127.0.0.1 - - [...]" access
-    # log; we keep our own structured logger so the user can dial verbosity.
-    def log_message(self, format: str, *args) -> None:  # noqa: A002 - shadowing builtin is intentional
-        log.debug(format, *args)
-
-    # ── dispatch ────────────────────────────────────────────────────────
-    def do_GET(self) -> None:
+    # --- dispatch ----------------------------------------------------------
+    def do_GET(self):
         self._proxy_request()
 
-    def do_POST(self) -> None:
+    def do_POST(self):
         self._proxy_request()
 
-    def do_PUT(self) -> None:
+    def do_PUT(self):
         self._proxy_request()
 
-    def do_DELETE(self) -> None:
+    def do_DELETE(self):
         self._proxy_request()
 
-    def do_PATCH(self) -> None:
+    def do_PATCH(self):
         self._proxy_request()
 
-    # ── core ────────────────────────────────────────────────────────────
-    def _proxy_request(self) -> None:
-        # 1. Special-case the health endpoint so monitoring tools can probe
-        #    the proxy without firing a real upstream request.
-        if self.path == "/_health":
-            self._handle_health()
-            return
+    # --- logging -----------------------------------------------------------
+    def log_message(self, fmt, *args):
+        log.debug(fmt, *args)
 
-        # 2. Read the request body once.
-        length = int(self.headers.get("Content-Length", 0) or 0)
-        body = self.rfile.read(length) if length > 0 else None
-
-        # 3. Figure out the auth material.
-        auth = self.headers.get("Authorization", "")
-        provided = auth[len("Bearer "):].strip() if auth.startswith("Bearer ") else ""
-        cfg_vk = self.server.config_vk  # type: ignore[attr-defined]
-
-        if provided and is_vk(provided):
-            vk, jwt = provided, exchange_vk_for_jwt(provided)
-        elif provided:
-            jwt, vk = provided, cfg_vk
-        else:
-            vk, jwt = cfg_vk, exchange_vk_for_jwt(cfg_vk)
-
-        if not jwt:
-            self._send_json(401, {"error": "Failed to obtain JWT from VK. "
-                                          "Check CANNBOT_VK and network connectivity."})
-            return
-        if not vk:
-            self._send_json(500, {"error": "No VK configured. Set CANNBOT_VK or "
-                                          "pass vk-xxx as Authorization header."})
-            return
-
-        # 4. Rewrite the path: Trae sends ``/v1/chat/completions`` but the
-        #    gateway URL already includes ``/v1``, so strip the prefix.
-        path = self.path
-        if path.startswith("/v1"):
-            path = path[3:] or "/"
-        if not path.startswith("/"):
-            path = "/" + path
-        upstream = GATEWAY_URL + path
-
-        # 5. Build the upstream request.
-        req = Request(upstream, data=body, method=self.command)
-        if body is not None:
-            ct = self.headers.get("Content-Type", "application/json")
-            req.add_header("Content-Type", ct)
-        req.add_header("x-api-vkey", vk)
-        req.add_header("Authorization", f"Bearer {jwt}")
-        # Pass through Accept to keep SSE streaming working.
-        accept = self.headers.get("Accept")
-        if accept:
-            req.add_header("Accept", accept)
-
-        # 6. Forward.
-        try:
-            with urlopen(req, timeout=300) as resp:
-                resp_body = resp.read()
-                self.send_response(resp.status)
-                for k, v in resp.headers.items():
-                    if k.lower() in ("transfer-encoding", "connection", "content-length"):
-                        continue
-                    self.send_header(k, v)
-                self.send_header("Content-Length", str(len(resp_body)))
-                self.end_headers()
-                self.wfile.write(resp_body)
-        except HTTPError as e:
-            err = e.read() if hasattr(e, "read") else b""
-            log.warning("upstream HTTP %d on %s %s", e.code, self.command, self.path)
-            self.send_response(e.code)
-            self.send_header("Content-Type", "application/json")
-            self.send_header("Content-Length", str(len(err)))
-            self.end_headers()
-            self.wfile.write(err)
-        except Exception as e:  # pragma: no cover
-            log.exception("proxy error")
-            self._send_json(502, {"error": f"Proxy error: {e}"})
-
-    # ── helpers ─────────────────────────────────────────────────────────
-    def _handle_health(self) -> None:
-        cfg_vk = self.server.config_vk  # type: ignore[attr-defined]
-        with _jwt.lock:
-            jwt_present = bool(_jwt.access)
-            expires_in = int(_jwt.expires_at - time.time()) if jwt_present else 0
-        body = {
-            "status": "ok",
-            "vk_configured": bool(cfg_vk),
-            "vk_preview": (cfg_vk[:8] + "...") if cfg_vk else None,
-            "jwt_cached": jwt_present,
-            "jwt_expires_in": expires_in,
-            "gateway": GATEWAY_URL,
-        }
-        self._send_json(200, body)
-
+    # --- helpers -----------------------------------------------------------
     def _send_json(self, code: int, payload: dict) -> None:
         data = json.dumps(payload).encode("utf-8")
         self.send_response(code)
@@ -390,13 +223,241 @@ class ProxyHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(data)
 
+    def _build_headers(self, content_type: str, vk: str, jwt: str) -> dict:
+        """Build upstream request headers."""
+        headers = {
+            "x-api-vkey": vk,
+            "Authorization": f"Bearer {jwt}",
+            "Connection": "close",
+            "User-Agent": "CANNBOT-Proxy/1.0",
+            "Accept-Encoding": "identity",
+        }
+        if content_type:
+            headers["Content-Type"] = content_type
+        return headers
 
-class _ThreadingHTTPServer(ThreadingHTTPServer):
-    """ThreadingHTTPServer that carries the configured VK on every request."""
+    def _open_upstream(self, url: str) -> http.client.HTTPConnection:
+        """Open connection to upstream with initial timeout."""
+        parsed = urlparse(url)
+        timeout = min(self.server.socket_timeout, self.server.keepalive_idle)
+        if parsed.scheme == "https":
+            return http.client.HTTPSConnection(
+                parsed.hostname, parsed.port or 443, timeout=timeout
+            )
+        return http.client.HTTPConnection(
+            parsed.hostname, parsed.port or 80, timeout=timeout
+        )
 
-    def __init__(self, addr: Tuple[str, int], handler, config_vk: str):
+    def _read_with_keepalive(self, conn, resp):
+        """Stream response body with keepalive mechanism.
+
+        - Each successful read resets the idle timer.
+        - A single socket timeout does NOT abort; we check the keepalive
+          window and retry.
+        - Only abort if no data for ``keepalive_idle`` seconds total.
+        """
+        keepalive_idle = self.server.keepalive_idle
+        socket_timeout = self.server.socket_timeout
+        last_data_time = time.time()
+
+        while True:
+            elapsed = time.time() - last_data_time
+            if elapsed > keepalive_idle:
+                raise TimeoutError(
+                    f"Keepalive timeout: no data for {keepalive_idle}s"
+                )
+
+            remaining = keepalive_idle - elapsed
+            op_timeout = min(socket_timeout, remaining)
+            if conn.sock:
+                conn.sock.settimeout(op_timeout)
+
+            try:
+                chunk = resp.read1(8192)
+            except socket.timeout:
+                elapsed_now = time.time() - last_data_time
+                log.debug(
+                    "Socket timeout, retrying read (%.0fs/%ds idle)",
+                    elapsed_now, keepalive_idle,
+                )
+                continue
+            except (ConnectionResetError, BrokenPipeError):
+                raise
+
+            if not chunk:
+                break
+
+            last_data_time = time.time()
+            try:
+                self.wfile.write(chunk)
+                self.wfile.flush()
+            except BrokenPipeError:
+                log.warning("Client disconnected mid-stream")
+                return
+
+    # --- core --------------------------------------------------------------
+    def _proxy_request(self) -> None:
+        # 1. Health check
+        if self.path == "/_health":
+            self._handle_health()
+            return
+
+        # 2. Read request body
+        content_length = int(self.headers.get("Content-Length", 0) or 0)
+        body = self.rfile.read(content_length) if content_length > 0 else None
+
+        # 3. Extract auth key from Authorization header
+        auth_header = self.headers.get("Authorization", "")
+        provided_key = (
+            auth_header[len("Bearer "):].strip()
+            if auth_header.startswith("Bearer ")
+            else ""
+        )
+
+        log.debug("Incoming path=%s provided_key=%s",
+                  self.path, (provided_key[:12] + "...") if provided_key else "(none)")
+
+        # 4. Determine VK and JWT
+        cfg_vk = self.server.config_vk
+        vk = cfg_vk
+        jwt = None
+
+        if provided_key and is_vk(provided_key):
+            vk = provided_key
+            jwt = exchange_vk_for_jwt(vk)
+        elif provided_key:
+            jwt = provided_key
+        else:
+            jwt = exchange_vk_for_jwt(vk)
+
+        if not jwt:
+            self._send_json(401, {
+                "error": "Failed to obtain JWT from VK. "
+                         "Check CANNBOT_VK and network connectivity."
+            })
+            return
+
+        # 5. Rewrite path: Trae sends /v1/chat/completions but GATEWAY_URL
+        #    already includes /v1, so strip the prefix.
+        path = self.path
+        if path.startswith("/v1"):
+            path = path[3:] or "/"
+        if not path.startswith("/"):
+            path = "/" + path
+        upstream_url = GATEWAY_URL + path
+
+        content_type = self.headers.get("Content-Type", "application/json")
+        method = self.command
+        headers = self._build_headers(content_type, vk, jwt)
+
+        # 6. Forward with retry on transient connection errors
+        max_retries = 2
+        last_exc = None
+        for attempt in range(max_retries + 1):
+            conn = None
+            try:
+                log.debug("Upstream attempt %d: %s %s", attempt + 1, method, self.path)
+                conn = self._open_upstream(upstream_url)
+                parsed = urlparse(upstream_url)
+                req_path = parsed.path
+                if parsed.query:
+                    req_path += "?" + parsed.query
+                conn.request(method, req_path, body=body, headers=headers)
+
+                # Wait for response headers: AI inference may take a long
+                # time before the first byte, so use the full keepalive
+                # window rather than the short socket timeout.
+                if conn.sock:
+                    conn.sock.settimeout(self.server.keepalive_idle)
+                resp = conn.getresponse()
+
+                # Send response headers to client
+                self.send_response(resp.status)
+                for key, val in resp.getheaders():
+                    if key.lower() in ("transfer-encoding", "connection"):
+                        continue
+                    self.send_header(key, val)
+                self.send_header("Connection", "close")
+                self.end_headers()
+
+                # Stream response body with keepalive
+                try:
+                    self._read_with_keepalive(conn, resp)
+                except BrokenPipeError:
+                    log.warning("Client disconnected mid-stream")
+                    return
+                except TimeoutError as e:
+                    log.error("%s", e)
+                    return
+
+                last_exc = None
+                break
+
+            except (ConnectionResetError, ConnectionAbortedError) as e:
+                last_exc = e
+                log.warning("Connection reset on attempt %d/%d: %s",
+                            attempt + 1, max_retries + 1, e)
+                if attempt >= max_retries:
+                    break
+                time.sleep(0.5 * (attempt + 1))
+                continue
+
+            except (socket.timeout, TimeoutError) as e:
+                log.error("Upstream timeout: %s", e)
+                try:
+                    self._send_json(504, {"error": f"Upstream timeout: {e}"})
+                except BrokenPipeError:
+                    pass
+                return
+
+            except Exception as e:
+                log.exception("Proxy error")
+                try:
+                    self._send_json(502, {"error": f"Proxy error: {e}"})
+                except BrokenPipeError:
+                    pass
+                return
+
+            finally:
+                if conn:
+                    try:
+                        conn.close()
+                    except Exception:
+                        pass
+
+        # All retries exhausted
+        if last_exc:
+            try:
+                self._send_json(502, {"error": f"Proxy error: {last_exc}"})
+            except BrokenPipeError:
+                pass
+
+    def _handle_health(self) -> None:
+        cfg_vk = self.server.config_vk
+        with _jwt_lock:
+            jwt_present = bool(_cached_jwt)
+            expires_in = int(_cached_jwt_exp - time.time()) if jwt_present else 0
+        self._send_json(200, {
+            "status": "ok",
+            "vk_configured": bool(cfg_vk),
+            "vk_preview": (cfg_vk[:8] + "...") if cfg_vk else None,
+            "jwt_cached": jwt_present,
+            "jwt_expires_in": expires_in,
+            "gateway": GATEWAY_URL,
+            "keepalive_idle": self.server.keepalive_idle,
+            "socket_timeout": self.server.socket_timeout,
+        })
+
+
+class _Server(ThreadingHTTPServer):
+    """ThreadingHTTPServer that carries proxy-wide config."""
+
+    def __init__(self, addr, handler, config_vk, keepalive_idle, socket_timeout):
         super().__init__(addr, handler)
         self.config_vk = config_vk
+        self.keepalive_idle = keepalive_idle
+        self.socket_timeout = socket_timeout
+        self.daemon_threads = True
 
 
 # ── CLI / entry point ───────────────────────────────────────────────────
@@ -405,8 +466,7 @@ def _parse_args() -> argparse.Namespace:
         prog="cannbot-proxy",
         description="Local HTTP proxy that injects CANNBOT auth headers for Trae IDE.",
     )
-    p.add_argument("--vk", help="CANNBOT Virtual Key (vk-xxxx). "
-                                "Overrides $CANNBOT_VK.")
+    p.add_argument("--vk", help="CANNBOT Virtual Key (vk-xxxx). Overrides $CANNBOT_VK.")
     p.add_argument("--port", type=int, help="Listen port (default 8765).")
     p.add_argument("--host", help="Bind address (default 127.0.0.1).")
     p.add_argument("--log-level", help="DEBUG/INFO/WARNING/ERROR.")
@@ -416,26 +476,26 @@ def _parse_args() -> argparse.Namespace:
     return p.parse_args()
 
 
-def _resolve_config(args: argparse.Namespace) -> Tuple[str, str, int, str]:
-    vk = args.vk or os.environ.get("CANNBOT_VK") or ""
+def _resolve_config(args) -> Tuple[str, str, int, str, int, int]:
+    vk = args.vk or os.environ.get("CANNBOT_VK", "")
     if not vk:
-        # Allow a fallback file so the daemon-mode unit can ship without env
-        # variables baked in.
         fallback = os.path.expanduser("~/.cannbot/vk")
         if os.path.isfile(fallback):
             with open(fallback, "r", encoding="utf-8") as f:
                 vk = f.read().strip()
-    if not vk or vk == "你的cannbot apikey":
+    if not vk:
         sys.stderr.write(
             "ERROR: No Virtual Key configured.\n"
             "  Set --vk vk-xxxx, or $CANNBOT_VK, or write to ~/.cannbot/vk.\n"
         )
         sys.exit(2)
+
     host = args.host or os.environ.get("CANNBOT_PROXY_HOST", DEFAULT_HOST)
     port = args.port or int(os.environ.get("CANNBOT_PROXY_PORT", DEFAULT_PORT))
-    log_level = (args.log_level
-                 or os.environ.get("CANNBOT_LOG_LEVEL", DEFAULT_LOG_LEVEL))
-    return vk, host, port, log_level
+    log_level = args.log_level or os.environ.get("CANNBOT_LOG_LEVEL", DEFAULT_LOG_LEVEL)
+    keepalive_idle = int(os.environ.get("CANNBOT_KEEPALIVE_IDLE", DEFAULT_KEEPALIVE_IDLE))
+    socket_timeout = int(os.environ.get("CANNBOT_SOCKET_TIMEOUT", DEFAULT_SOCKET_TIMEOUT))
+    return vk, host, port, log_level, keepalive_idle, socket_timeout
 
 
 def _daemonize(log_file: Optional[str]) -> None:
@@ -443,23 +503,32 @@ def _daemonize(log_file: Optional[str]) -> None:
     if os.name != "posix":
         sys.stderr.write("Daemon mode is POSIX only; run without --daemon.\n")
         sys.exit(1)
-    if os.fork() > 0:
-        sys.exit(0)
+    # First fork
+    pid = os.fork()
+    if pid > 0:
+        # Parent: print and exit
+        print(f"Daemon started (PID={pid}), "
+              f"see {log_file or '/tmp/cannbot_proxy.log'}")
+        os._exit(0)
+    # Child: become session leader
     os.setsid()
-    if os.fork() > 0:
-        sys.exit(0)
+    # Second fork
+    pid = os.fork()
+    if pid > 0:
+        os._exit(0)
+    # Daemon: redirect std fds
     sys.stdout.flush()
     sys.stderr.flush()
     devnull = open(os.devnull, "rb")
     os.dup2(devnull.fileno(), 0)
-    out = open(log_file, "ab", buffering=0) if log_file else open(os.devnull, "ab")
+    out = open(log_file or "/tmp/cannbot_proxy.log", "ab", buffering=0)
     os.dup2(out.fileno(), 1)
     os.dup2(out.fileno(), 2)
 
 
 def main() -> None:
     args = _parse_args()
-    vk, host, port, log_level = _resolve_config(args)
+    vk, host, port, log_level, keepalive_idle, socket_timeout = _resolve_config(args)
     _setup_logging(log_level)
 
     if args.log:
@@ -480,32 +549,38 @@ def main() -> None:
         with open(pid_path, "w") as f:
             f.write(str(os.getpid()))
 
-    # Validate VK shape early so the user gets a clear error before binding.
+    # Validate VK shape
     if not is_vk(vk):
         log.warning("VK does not start with 'vk-' (got %r). "
                     "If this is a JWT, the proxy will use it as the bearer "
                     "token and fall back to the configured VK for x-api-vkey.",
                     vk[:8] + "...")
 
-    # Best-effort: pre-warm the JWT so Trae's first call is fast.
+    # Pre-warm JWT
     exchange_vk_for_jwt(vk)
 
-    server = _ThreadingHTTPServer((host, port), ProxyHandler, config_vk=vk)
+    server = _Server(
+        (host, port), ProxyHandler,
+        config_vk=vk,
+        keepalive_idle=keepalive_idle,
+        socket_timeout=socket_timeout,
+    )
 
-    def _graceful_shutdown(signum, _frame):  # pragma: no cover
+    # Graceful shutdown
+    def _graceful(signum, _frame):
         log.info("Caught signal %d, shutting down", signum)
-        # ThreadingHTTPServer.shutdown() is not thread-safe; do it from another thread.
         threading.Thread(target=server.shutdown, daemon=True).start()
 
     for sig in (signal.SIGINT, signal.SIGTERM):
         try:
-            signal.signal(sig, _graceful_shutdown)
+            signal.signal(sig, _graceful)
         except (ValueError, OSError):
-            pass  # not in main thread (daemon mode)
+            pass
 
     log.info("CANNBOT proxy listening on http://%s:%d", host, port)
-    log.info("  Gateway : %s", GATEWAY_URL)
-    log.info("  VK      : %s", vk[:8] + "..." if len(vk) > 8 else vk)
+    log.info("  Gateway       : %s", GATEWAY_URL)
+    log.info("  VK            : %s", vk[:8] + "..." if len(vk) > 8 else vk)
+    log.info("  Keepalive     : idle=%ds, socket_op=%ds", keepalive_idle, socket_timeout)
     log.info("Configure Trae -> API Base URL: http://%s:%d/v1", host, port)
     log.info("                    API Key    : your VK (e.g. vk-xxxx)")
 
