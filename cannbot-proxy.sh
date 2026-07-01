@@ -7,8 +7,9 @@
 #   ./cannbot-proxy.sh status    查看运行状态
 #   ./cannbot-proxy.sh restart   重启
 #
-# VK 来源(代理自身解析):$CANNBOT_VK 环境变量 > ~/.cannbot/vk 文件。
-# 端口/地址可用 CANNBOT_CLAUDE_PROXY_PORT / CANNBOT_PROXY_HOST 覆盖。
+# VK 来源(代理自身解析,优先级从高到低):
+#   请求头 ANTHROPIC_AUTH_TOKEN(vk- 开头) > $CANNBOT_VK 环境变量 > ~/.cannbot/vk 文件。
+# 端口/地址可用 CANNBOT_CLAUDE_PROXY_PORT(默认 8766) / CANNBOT_PROXY_HOST(默认 127.0.0.1) 覆盖。
 # ----------------------------------------------------------------------------
 set -euo pipefail
 
