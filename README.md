@@ -15,6 +15,12 @@
   - [验证](#验证)
   - [卸载](#卸载)
   - [常见问题](#常见问题)
+- [Claude Code 接入](#claude-code-接入)
+  - [为什么需要代理](#为什么需要代理-1)
+  - [前置要求](#前置要求-1)
+  - [用管理脚本启停](#用管理脚本启停)
+  - [配置 Claude Code](#配置-claude-code)
+  - [验证](#验证-1)
 - [VS Code Copilot Chat 接入](#vs-code-copilot-chat-接入)
   - [安装](#安装)
   - [用法](#用法)
@@ -228,6 +234,64 @@ A: 不会。三者独立：OpenCode 插件（`cannbot-auth.js`）只注入 openc
 
 ---
 
+## Claude Code 接入
+
+### 为什么需要代理
+
+[Claude Code](https://claude.com/claude-code) 说的是 Anthropic Messages API（`POST /v1/messages`），并通过 `ANTHROPIC_BASE_URL` 指向自定义端点；而 CANNBOT 网关是 **OpenAI 兼容**的，且同样要求**两个** header：
+
+```
+x-api-vkey:    <你的 Virtual Key>
+Authorization: Bearer <短期 JWT>
+```
+
+所以本仓库提供一个仅用 Python 标准库的本地代理 `cannbot-claude-proxy.py`，它做两件事：
+
+1. **协议转换**：把 Anthropic Messages 请求/响应与 OpenAI Chat Completions 互相翻译（含流式 SSE 事件序列、`/v1/messages/count_tokens`）；
+2. **注入双 header**：完成 VK→JWT 兑换并注入 `x-api-vkey` 与 `Authorization`，过期前自动续期。
+
+VK→JWT 兑换协议和网关地址与 OpenCode 插件、Trae 代理完全一致。
+
+### 前置要求
+
+- Python 3.8+（macOS / Linux 通常自带；Windows 从 https://python.org 下载）
+- [Claude Code](https://claude.com/claude-code)
+
+### 用管理脚本启停
+
+`cannbot-proxy.sh` 封装了后台启停（会在脚本同目录生成 `proxy.pid` / `proxy.log`）：
+
+```bash
+./cannbot-proxy.sh start     # 启动后台代理（别名 install）
+./cannbot-proxy.sh status    # 查看运行状态与健康检查
+./cannbot-proxy.sh stop      # 停止（别名 uninstall）
+./cannbot-proxy.sh restart   # 重启
+```
+
+VK 来源：请求头 `ANTHROPIC_AUTH_TOKEN`（`vk-` 开头）> `$CANNBOT_VK` 环境变量 > `~/.cannbot/vk`（chmod 0600）。端口/地址可用 `CANNBOT_CLAUDE_PROXY_PORT`（默认 `8766`）/ `CANNBOT_PROXY_HOST`（默认 `127.0.0.1`）覆盖。
+
+### 配置 Claude Code
+
+代理跑起来后，让 Claude Code 指向它：
+
+```bash
+export ANTHROPIC_BASE_URL="http://127.0.0.1:8766"
+export ANTHROPIC_AUTH_TOKEN="vk-xxxxxxxxxxxxxxxxxxxx"
+export ANTHROPIC_MODEL="glm-5.1"                        # 或 qwen3.7-max 等
+claude
+```
+
+### 验证
+
+```bash
+curl -sS http://127.0.0.1:8766/_health
+# {"status": "ok", "vk_configured": true, "jwt_cached": true, ...}
+```
+
+健康检查返回 `ok` 即代理工作正常，可直接在 Claude Code 中对话。
+
+---
+
 ## VS Code Copilot Chat 接入
 
 `cannbot-vscode` 扩展把 CANNBot 模型直接注册到 **GitHub Copilot Chat 的模型选择器**中，
@@ -281,6 +345,8 @@ npm run package   # 打包 .vsix
 | `cannbot-proxy.py` | 本地 HTTP 代理，让 Trae IDE / Continue 也能走 CANNBOT 网关 |
 | `install-cannbot-trae.sh` / `.ps1` | 一键安装 Trae 代理（macOS/Linux/Windows 三个平台） |
 | `uninstall-cannbot-trae.sh` | 卸载 Trae 代理 |
+| `cannbot-claude-proxy.py` | 本地代理，把 Claude Code 的 Anthropic Messages API 转成 CANNBOT（OpenAI 兼容）网关请求 |
+| `cannbot-proxy.sh` | Claude Code 代理的启停管理脚本（start/stop/status/restart） |
 | `cannbot-vscode/` | **新增**：VS Code 扩展，CANNBot 模型直接出现在 Copilot Chat 模型选择器 |
 
 ## 许可

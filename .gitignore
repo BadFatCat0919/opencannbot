@@ -1,2 +1,4 @@
 .claude/
 .opencode/
+proxy.pid
+proxy.log
