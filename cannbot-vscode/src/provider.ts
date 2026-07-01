@@ -22,6 +22,9 @@ interface CannbotModelDef {
 }
 
 const MODELS: CannbotModelDef[] = [
+  { id: 'claude-opus-4-8', name: 'Claude Opus 4.8', family: 'claude', version: '4.8', maxInputTokens: 1048576, maxOutputTokens: 131072 },
+  { id: 'gpt-5.4', name: 'GPT 5.4', family: 'gpt', version: '5.4', maxInputTokens: 1048576, maxOutputTokens: 128000 },
+  { id: 'deepseek-v4-pro', name: 'DeepSeek V4 Pro', family: 'deepseek', version: '4', maxInputTokens: 1048576, maxOutputTokens: 393216 },
   { id: 'glm-5.2', name: 'GLM 5.2', family: 'glm', version: '5.2', maxInputTokens: 1048576, maxOutputTokens: 131072 },
   { id: 'glm-5.1', name: 'GLM 5.1', family: 'glm', version: '5.1', maxInputTokens: 206848, maxOutputTokens: 131072 },
   { id: 'glm-5', name: 'GLM 5', family: 'glm', version: '5', maxInputTokens: 169984, maxOutputTokens: 131072 },

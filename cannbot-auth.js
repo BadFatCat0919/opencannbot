@@ -108,10 +108,14 @@ const LIMIT = { context: 131072, output: 8192 };
 const COST = { input: 0, output: 0, cache: { read: 0, write: 0 } };
 
 const KNOWN_MODELS = {
-  "glm-5": { name: "GLM 5", family: "glm" },
-  "glm-5.1": { name: "GLM 5.1", family: "glm" },
-  "qwen3.6-plus": { name: "Qwen 3.6 Plus", family: "qwen" },
-  "qwen3.7-max": { name: "Qwen 3.7 Max", family: "qwen" },
+  "claude-opus-4-8": { name: "Claude Opus 4.8", family: "claude", context: 1048576, output: 131072 },
+  "gpt-5.4": { name: "GPT 5.4", family: "gpt", context: 1048576, output: 128000 },
+  "deepseek-v4-pro": { name: "DeepSeek V4 Pro", family: "deepseek", context: 1048576, output: 393216 },
+  "glm-5.2": { name: "GLM 5.2", family: "glm", context: 1048576, output: 131072 },
+  "glm-5.1": { name: "GLM 5.1", family: "glm", context: 206848, output: 131072 },
+  "glm-5": { name: "GLM 5", family: "glm", context: 169984, output: 131072 },
+  "qwen3.7-max": { name: "Qwen 3.7 Max", family: "qwen", context: 1048576, output: 65535 },
+  "qwen3.6-plus": { name: "Qwen 3.6 Plus", family: "qwen", context: 1048576, output: 65535 },
 };
 
 function buildModels() {
@@ -124,7 +128,7 @@ function buildModels() {
         family: info.family,
         api: { id, url: GATEWAY_URL, npm: "@ai-sdk/openai-compatible" },
         capabilities: { ...CAPABILITIES },
-        limit: { ...LIMIT },
+        limit: { context: info.context ?? LIMIT.context, output: info.output ?? LIMIT.output },
         cost: { input: COST.input, output: COST.output, cache: { ...COST.cache } },
         status: "active",
         options: {},

@@ -25,7 +25,7 @@
         "cannbot.defaultModel": {
           "type": "string",
           "default": "glm-5.1",
-          "markdownDescription": "Default model ID (e.g. `glm-5.1`, `qwen3.7-max`)."
+          "markdownDescription": "Default model ID (e.g. `claude-opus-4-8`, `glm-5.2`, `qwen3.7-max`)."
         },
         "cannbot.temperature": {
           "type": "number",

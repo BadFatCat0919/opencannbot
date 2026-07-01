@@ -176,7 +176,7 @@ bold "Done! Configure Trae as follows:"
 echo
 echo "  API Base URL : http://${HOST}:${PORT}/v1"
 echo "  API Key      : ${VK}"
-echo "  Model        : (any CANNBOT model, e.g. glm-5.1, qwen3.7-max)"
+echo "  Model        : (any CANNBOT model, e.g. claude-opus-4-8, glm-5.2, qwen3.7-max)"
 echo
 echo "Logs   : tail -f $LOG_FILE"
 echo "Stop   : launchctl unload ~/Library/LaunchAgents/$SERVICE_NAME.plist   # macOS"
