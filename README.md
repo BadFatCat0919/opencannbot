@@ -205,7 +205,14 @@ curl -sS http://127.0.0.1:8766/_health
 
 ## VS Code Copilot Chat 接入
 
-`cannbot-vscode` 扩展把 CANNBot 模型注册进 GitHub Copilot Chat 的模型选择器，与 GPT、Claude 并列显示，Agent 模式、工具调用、Skills 等能力开箱即用。
+提供两个独立的 VS Code 扩展，可以同时安装、分别配置不同的 VK：
+
+| 扩展 | 显示名称 | 模型 |
+|------|----------|------|
+| `cannbot` | CANNBot | DeepSeek V4 Pro, GLM 5.2, GLM 5.1, Qwen 3.7 Max, Qwen 3.6 Plus |
+| `cannbot-pro` | CANNBot Pro | Claude Opus 4.8, GPT 5.4 |
+
+> **注意：** Claude Opus 4.8 和 GPT 5.4 目前仅对部分内测用户开放。如果你是内测用户，安装 `cannbot-pro` 扩展即可使用这两个模型。`cannbot-pro` 与 `cannbot` 使用独立的 VK，在 VS Code 设置中可以分别配置（命令面板里分别有 `CANNBot: Set VK` 和 `CANNBot Pro: Set VK` 两个命令）。
 
 ### 前置要求
 
@@ -215,43 +222,55 @@ curl -sS http://127.0.0.1:8766/_health
 ### 安装
 
 ```bash
-cd cannbot-vscode && npm install && npm run compile && npx vsce package
-code --install-extension cannbot-vscode-*.vsix
+# CANNBot（标准模型）
+cd cannbot && npm install && npm run compile && npx vsce package
+code --install-extension cannbot-*.vsix
+
+# CANNBot Pro（内测模型，需单独 VK）
+cd cannbot-pro && npm install && npm run compile && npx vsce package
+code --install-extension cannbot-pro-*.vsix
 ```
 
 ### 配置
 
+**CANNBot（cannbot）：**
 1. `Ctrl+Shift+P` → **`CANNBot: Set Virtual Key (VK)`** → 输入你的 VK
-2. 打开 Copilot Chat（`Ctrl+Shift+I`），点击模型下拉菜单
-3. 选择任意 CANNBot 模型（见[支持的模型](#支持的模型)）
-4. 正常聊天
+2. 打开 Copilot Chat（`Ctrl+Shift+I`），选择任意标准模型
+
+**CANNBot Pro（cannbot-pro）：**
+1. `Ctrl+Shift+P` → **`CANNBot Pro: Set Virtual Key (VK)`** → 输入你的 Pro VK
+2. 打开 Copilot Chat（`Ctrl+Shift+I`），选择 Claude Opus 4.8 或 GPT 5.4
 
 VK 存储在 VS Code 的 `SecretStorage`（操作系统密钥链），不会出现在 `settings.json` 中。
 
 ### 验证
 
-在 Copilot Chat 模型选择器中能看到 CANNBot 模型，且对话正常返回即接入成功。
+在 Copilot Chat 模型选择器中能看到 CANNBot / CANNBot Pro 的模型，且对话正常返回即接入成功。
 
 ### 构建
 
 ```bash
-cd cannbot-vscode
-npm install       # 安装依赖
-npm run compile   # 编译 TypeScript
-npm run package   # 打包 .vsix
+cd cannbot      # 或 cd cannbot-pro
+npm install           # 安装依赖
+npm run compile       # 编译 TypeScript
+npm run package       # 打包 .vsix
 ```
 
 ---
 
 ## 支持的模型
 
-| 模型 | Context | Max Output |
-|------|---------|------------|
-| DeepSeek V4 Pro | 1M | 393,216 |
-| GLM 5.2 | 1M | 131,072 |
-| GLM 5.1 | 202K | 131,072 |
-| Qwen 3.7 Max | 1M | 65,535 |
-| Qwen 3.6 Plus | 1M | 65,535 |
+| Provider | 模型 | Context | Max Output |
+|----------|------|---------|------------|
+| **cannbot-pro** | Claude Opus 4.8 ★ | 1M | 131,072 |
+| **cannbot-pro** | GPT 5.4 ★ | 1M | 128,000 |
+| cannbot | DeepSeek V4 Pro | 1M | 393,216 |
+| cannbot | GLM 5.2 | 1M | 131,072 |
+| cannbot | GLM 5.1 | 202K | 131,072 |
+| cannbot | Qwen 3.7 Max | 1M | 65,535 |
+| cannbot | Qwen 3.6 Plus | 1M | 65,535 |
+
+> ★ Claude Opus 4.8 和 GPT 5.4 仅对部分内测用户开放，安装 `cannbot-pro` 扩展并使用对应的 Pro VK 即可接入。
 
 ---
 
@@ -266,7 +285,8 @@ npm run package   # 打包 .vsix
 | `uninstall-cannbot-trae.sh` | 卸载 Trae 组件 |
 | `cannbot-claude-proxy.py` | Claude Code 用的本地运行组件 |
 | `cannbot-proxy.sh` | Claude Code 组件的启停管理脚本（start / stop / status / restart） |
-| `cannbot-vscode/` | VS Code 扩展 |
+| `cannbot/` | VS Code 扩展（标准模型：DeepSeek / GLM / Qwen） |
+| `cannbot-pro/` | VS Code 扩展（Pro 模型：Claude Opus / GPT，独立 VK） |
 
 ## 许可
 

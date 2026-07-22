@@ -2,3 +2,6 @@
 .opencode/
 proxy.pid
 proxy.log
+node_modules/
+out/
+*.vsix

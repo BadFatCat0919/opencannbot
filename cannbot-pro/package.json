@@ -1,8 +1,8 @@
 {
-  "name": "cannbot-vscode",
-  "displayName": "CANNBot Chat for Copilot",
-  "description": "Use CANNBOT models directly in Copilot Chat model picker",
-  "version": "0.3.0",
+  "name": "cannbot-pro",
+  "displayName": "CANNBot Pro for Copilot",
+  "description": "Use CANNBOT Pro models (Claude Opus, GPT) directly in Copilot Chat model picker",
+  "version": "0.1.0",
   "private": true,
   "publisher": "cannbot",
   "license": "MIT",
@@ -15,26 +15,26 @@
   "contributes": {
     "languageModelChatProviders": [
       {
-        "vendor": "cannbot",
-        "displayName": "CANNBot"
+        "vendor": "cannbotpro",
+        "displayName": "CANNBot Pro"
       }
     ],
     "configuration": {
-      "title": "CANNBot",
+      "title": "CANNBot Pro",
       "properties": {
-        "cannbot.defaultModel": {
+        "cannbotpro.defaultModel": {
           "type": "string",
-          "default": "glm-5.1",
-          "markdownDescription": "Default model ID (e.g. `claude-opus-4-8`, `glm-5.2`, `qwen3.7-max`)."
+          "default": "claude-opus-4-8",
+          "markdownDescription": "Default model ID (e.g. `claude-opus-4-8`, `gpt-5.4`)."
         },
-        "cannbot.temperature": {
+        "cannbotpro.temperature": {
           "type": "number",
           "default": 0.3,
           "minimum": 0,
           "maximum": 2,
           "description": "Model temperature (0.0 - 2.0)."
         },
-        "cannbot.maxTokens": {
+        "cannbotpro.maxTokens": {
           "type": "number",
           "default": 0,
           "description": "Max output tokens (0 = no limit)."
@@ -43,16 +43,16 @@
     },
     "commands": [
       {
-        "command": "cannbot.setVk",
-        "title": "CANNBot: Set Virtual Key (VK)"
+        "command": "cannbotpro.setVk",
+        "title": "CANNBot Pro: Set Virtual Key (VK)"
       },
       {
-        "command": "cannbot.clearVk",
-        "title": "CANNBot: Clear Virtual Key (VK)"
+        "command": "cannbotpro.clearVk",
+        "title": "CANNBot Pro: Clear Virtual Key (VK)"
       },
       {
-        "command": "cannbot.status",
-        "title": "CANNBot: Show connection status"
+        "command": "cannbotpro.status",
+        "title": "CANNBot Pro: Show connection status"
       }
     ]
   },

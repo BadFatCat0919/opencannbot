@@ -1,0 +1,71 @@
+{
+  "name": "cannbot",
+  "displayName": "CANNBot for Copilot (Standard)",
+  "description": "Use CANNBOT models directly in Copilot Chat model picker",
+  "version": "0.3.0",
+  "private": true,
+  "publisher": "cannbot",
+  "license": "MIT",
+  "repository": "https://github.com/BadFatCat0919/opencannbot",
+  "engines": {
+    "vscode": "^1.116.0"
+  },
+  "activationEvents": ["onStartupFinished"],
+  "main": "./out/extension.js",
+  "contributes": {
+    "languageModelChatProviders": [
+      {
+        "vendor": "cannbot",
+        "displayName": "CANNBot"
+      }
+    ],
+    "configuration": {
+      "title": "CANNBot",
+      "properties": {
+        "cannbot.defaultModel": {
+          "type": "string",
+          "default": "glm-5.1",
+          "markdownDescription": "Default model ID (e.g. `claude-opus-4-8`, `glm-5.2`, `qwen3.7-max`)."
+        },
+        "cannbot.temperature": {
+          "type": "number",
+          "default": 0.3,
+          "minimum": 0,
+          "maximum": 2,
+          "description": "Model temperature (0.0 - 2.0)."
+        },
+        "cannbot.maxTokens": {
+          "type": "number",
+          "default": 0,
+          "description": "Max output tokens (0 = no limit)."
+        }
+      }
+    },
+    "commands": [
+      {
+        "command": "cannbot.setVk",
+        "title": "CANNBot: Set Virtual Key (VK)"
+      },
+      {
+        "command": "cannbot.clearVk",
+        "title": "CANNBot: Clear Virtual Key (VK)"
+      },
+      {
+        "command": "cannbot.status",
+        "title": "CANNBot: Show connection status"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.85.0",
+    "typescript": "^5.3.0",
+    "@vscode/vsce": "^2.22.0"
+  }
+}
