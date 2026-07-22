@@ -52,7 +52,12 @@ $B="https://gh-proxy.com/https://raw.githubusercontent.com/BadFatCat0919/opencan
 
 ### 配置
 
-安装完成后重启 opencode，输入 `/connect`，选择 **CANNBOT** 并填入你的 VK 即可。
+安装完成后重启 opencode，输入 `/connect`，选择 **CANNBOT**（标准模型）或 **CANNBOT-Pro**（Claude Opus / GPT，仅内测用户开放）并填入你的 VK。两个 provider 使用独立的 VK，可以分别配置：
+
+```
+/connect → CANNBOT      → 填入标准 VK（DeepSeek / GLM / Qwen）
+/connect → CANNBOT-Pro  → 填入 Pro VK（Claude Opus 4.8 / GPT 5.4）
+```
 
 ### 验证
 
@@ -278,8 +283,9 @@ npm run package       # 打包 .vsix
 
 | 文件 | 作用 |
 |------|------|
-| `cannbot-auth.js` | OpenCode 用的 provider 插件 |
-| `install-cannbot-provider.sh` / `.ps1` | 一键把插件装进 opencode |
+| `cannbot-auth.js` | OpenCode provider 插件（标准模型：DeepSeek / GLM / Qwen） |
+| `cannbot-pro-auth.js` | OpenCode provider 插件（Pro 模型：Claude Opus / GPT，独立 VK） |
+| `install-cannbot-provider.sh` / `.ps1` | 一键把两个插件装进 opencode |
 | `cannbot-proxy.py` | Trae IDE 用的本地运行组件 |
 | `install-cannbot-trae.sh` / `.ps1` | 一键安装 Trae 组件（macOS / Linux / Windows） |
 | `uninstall-cannbot-trae.sh` | 卸载 Trae 组件 |
