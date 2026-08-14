@@ -1,3 +1,5 @@
+
+
 # OpenCANNBot — 把 CANNBOT 接到你顺手的开发环境里
 
 > 良将当配好马。CANNBOT 网关提供的模型实力不俗，可一旦只能困在自带的那道命令行里，就有几分「吕布骑狗」的憋屈——身手施展不开。
@@ -272,6 +274,7 @@ npm run package       # 打包 .vsix
 | cannbot | DeepSeek V4 Pro | 1M | 393,216 |
 | cannbot | GLM 5.2 | 1M | 131,072 |
 | cannbot | GLM 5.1 | 202K | 131,072 |
+| cannbot | GLM 5 | 166K | 131,072 |
 | cannbot | Qwen 3.7 Max | 1M | 65,535 |
 | cannbot | Qwen 3.6 Plus | 1M | 65,535 |
 
