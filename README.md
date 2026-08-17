@@ -2,7 +2,7 @@
 
 > 良将当配好马。CANNBOT 网关提供的模型实力不俗，可一旦只能困在自带的那道命令行里，就有几分「吕布骑狗」的憋屈——身手施展不开。
 >
-> [OpenCode](https://opencode.ai)、[Trae IDE](https://www.trae.ai)、[Claude Code](https://claude.com/claude-code)、[VS Code Copilot Chat](https://code.visualstudio.com/docs/copilot/overview) 这些日常常用的 Agent 框架，正是称手的坐骑。OpenCANNBot 一键把 CANNBot 网关的模型接进它们，让良将配上好马，在你每天都在用的框架里跑出全部身手。
+> [OpenCode](https://opencode.ai)、[Trae IDE](https://www.trae.ai)、[Claude Code](https://claude.com/claude-code)、[VS Code Copilot Chat](https://code.visualstudio.com/docs/copilot/overview)、[DeepSeek Harness (DSH)](https://github.com/deepseek-ai/deepseek-harness) 这些日常常用的 Agent 框架，正是称手的坐骑。OpenCANNBot 一键把 CANNBot 网关的模型接进它们，让良将配上好马，在你每天都在用的框架里跑出全部身手。
 
 ## 目录
 
@@ -12,6 +12,7 @@
 - [Trae IDE 接入](#trae-ide-接入)
 - [Claude Code 接入](#claude-code-接入)
 - [VS Code Copilot Chat 接入](#vs-code-copilot-chat-接入)
+- [DeepSeek Harness (DSH) 接入](#deepseek-harness-dsh-接入)
 - [仓库结构](#仓库结构)
 - [许可](#许可)
 
@@ -279,6 +280,88 @@ npm run package       # 打包 .vsix
 
 ---
 
+## DeepSeek Harness (DSH) 接入
+
+### 前置要求
+
+- 已安装 [Node.js](https://nodejs.org/) >= 22.19 或 >= 24
+- 已通过 `npx @deepseek-ai/dsh web` 初始化过 DSH（生成 `~/.dsh`）
+- 有一个有效的 CANNBOT Virtual Key（`vk-xxxx`）
+
+### 安装
+
+DSH 插件已独立发布到 [RemakerHammand/dsh-llm-cannbot](https://github.com/RemakerHammand/dsh-llm-cannbot)。
+
+**方式一：官方命令安装（推荐）**
+
+```bash
+dsh plugin --profile web add github:RemakerHammand/dsh-llm-cannbot
+```
+
+**方式二：一键安装脚本**
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/BadFatCat0919/opencannbot/main/install-cannbot-dsh.sh | bash
+```
+
+脚本会通过 `dsh plugin add` 从 GitHub 安装插件，并引导配置 `CANNBOT_API_KEY`。
+
+**方式三：手动 patch**
+
+在 `~/.dsh/profiles/web/cordis.patch.yml` 追加：
+
+```yaml
+- insert:
+    - id: llm-cannbot
+      name: 'dsh-llm-cannbot'
+      config:
+        apiKeyEnv: CANNBOT_API_KEY
+        baseURL: 'https://cannbot.hicann.cn/gateway/compatible-mode/v1'
+        authURL: 'https://cannbot.hicann.cn/cannbot/api/auth/authenticate'
+        modelsURL: 'https://cannbot.hicann.cn/cannbot/api/models/list'
+```
+
+### 配置
+
+安装后重启 DSH Web：
+
+```bash
+npx @deepseek-ai/dsh web
+```
+
+刷新浏览器页面，在 **Settings → Models** 页面会看到 CANNBOT 卡片，可以：
+- 输入/修改 VK（写入 `~/.dsh/.credentials.yaml`）
+- 编辑网关 baseURL
+- 查看和探测可用模型列表
+
+### 验证
+
+在模型选择器中选择 `cannbot / glm-5.2` 等模型，对话正常返回即接入成功。
+
+输入 `/cannbot-usage` 可查看当日 token 使用量。
+
+### 特性
+
+- **进程内运行**：DSH 启动即用，无需额外进程
+- **自由切换模型**：尊重选择的模型，可自由切换任意 cannbot 模型
+- **热重载**：改 VK / 模型 / 参数走 settings HMR，下一次请求即生效
+- **模型自动发现**：网关新增模型自动出现在选择器里
+- **使用量记录**：每次调用的 token 用量记录到 `~/.dsh/cannbot-usage.jsonl`
+
+### 可用模型
+
+| 模型 | Context | Max Output |
+|------|---------|------------|
+| DeepSeek V4 Pro | 1M | 393,216 |
+| GLM 5.2 | 1M | 131,072 |
+| GLM 5.1 | 202K | 131,072 |
+| DeepSeek V4 Flash 0731 | 1M | 393,216 |
+| Qwen 3.7 Max | 1M | 65,535 |
+
+> 插件源码与完整文档：[github.com/RemakerHammand/dsh-llm-cannbot](https://github.com/RemakerHammand/dsh-llm-cannbot)
+
+---
+
 ## 仓库结构
 
 | 文件 | 作用 |
@@ -293,6 +376,7 @@ npm run package       # 打包 .vsix
 | `cannbot-proxy.sh` | Claude Code 组件的启停管理脚本（start / stop / status / restart） |
 | `cannbot/` | VS Code 扩展（标准模型：DeepSeek / GLM / Qwen） |
 | `cannbot-pro/` | VS Code 扩展（Pro 模型：Claude Opus / GPT，独立 VK） |
+| `install-cannbot-dsh.sh` | 一键把 DSH 插件装进 web profile |
 
 ## 许可
 
