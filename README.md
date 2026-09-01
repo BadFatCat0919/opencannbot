@@ -175,7 +175,35 @@ A: **不要**。VK/JWT 均为明文，本地环回（`127.0.0.1`）是唯一安�
 - Python 3.8+（macOS / Linux 通常自带；Windows 从 <https://python.org> 下载）
 - [Claude Code](https://claude.com/claude-code)
 
-### 安装
+### 一键安装
+
+直连：
+
+```bash
+# macOS / Linux
+curl -fsSL https://raw.githubusercontent.com/BadFatCat0919/opencannbot/main/install-cannbot-claude.sh | bash
+```
+
+国内加速（以 `gh-proxy.com` 为例）：
+
+```bash
+# macOS / Linux
+B="https://gh-proxy.com/https://raw.githubusercontent.com/BadFatCat0919/opencannbot/main"; curl -fsSL "$B/install-cannbot-claude.sh" | CANNBOT_REPO_RAW="$B" bash
+```
+
+安装脚本会：
+1. 下载 `cannbot-claude-proxy.py` 和 `cannbot-proxy.sh` 到 `~/.cannbot/proxy/`
+2. 提示输入 VK（或从 `$CANNBOT_VK` / `~/.cannbot/vk` 读取）并保存
+3. 自动追加 `ANTHROPIC_BASE_URL`、`ANTHROPIC_AUTH_TOKEN`、`ANTHROPIC_MODEL`、`CLAUDE_CODE_MAX_CONTEXT_TOKENS` 到 `~/.bashrc`（或 `~/.zshrc`）
+4. 启动代理并做健康检查
+
+如需开机自启服务，加 `--service` 参数：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/BadFatCat0919/opencannbot/main/install-cannbot-claude.sh | bash -s -- --service
+```
+
+### 手动安装
 
 用管理脚本 `cannbot-proxy.sh` 后台启停：
 
@@ -193,7 +221,9 @@ VK 来源优先级：请求头 `ANTHROPIC_AUTH_TOKEN`（`vk-` 开头）> `$CANNB
 ```bash
 export ANTHROPIC_BASE_URL="http://127.0.0.1:8766"
 export ANTHROPIC_AUTH_TOKEN="vk-xxxxxxxxxxxxxxxxxxxx"
-export ANTHROPIC_MODEL="claude-opus-4-8"                # 或其它，见「支持的模型」
+export ANTHROPIC_MODEL="deepseek-v4-pro"                # 或其它，见「支持的模型」
+# 上下文窗口（deepseek-v4-pro 为 1M / 393K，设置后充分利用）
+export CLAUDE_CODE_MAX_CONTEXT_TOKENS=393216
 claude
 ```
 
@@ -205,6 +235,19 @@ curl -sS http://127.0.0.1:8766/_health
 ```
 
 返回 `ok` 即可在 Claude Code 中直接对话。
+
+### 卸载
+
+```bash
+# macOS / Linux
+curl -fsSL https://raw.githubusercontent.com/BadFatCat0919/opencannbot/main/uninstall-cannbot-claude.sh | bash
+```
+
+加 `--purge` 参数可同时删除代理文件和 VK：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/BadFatCat0919/opencannbot/main/uninstall-cannbot-claude.sh | bash -s -- --purge
+```
 
 ---
 
@@ -289,6 +332,8 @@ npm run package       # 打包 .vsix
 | `cannbot-proxy.py` | Trae IDE 用的本地运行组件 |
 | `install-cannbot-trae.sh` / `.ps1` | 一键安装 Trae 组件（macOS / Linux / Windows） |
 | `uninstall-cannbot-trae.sh` | 卸载 Trae 组件 |
+| `install-cannbot-claude.sh` | 一键安装 Claude Code 组件（VK 配置 + shell rc + 代理启动） |
+| `uninstall-cannbot-claude.sh` | 卸载 Claude Code 组件 |
 | `cannbot-claude-proxy.py` | Claude Code 用的本地运行组件 |
 | `cannbot-proxy.sh` | Claude Code 组件的启停管理脚本（start / stop / status / restart） |
 | `cannbot/` | VS Code 扩展（标准模型：DeepSeek / GLM / Qwen） |
