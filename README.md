@@ -50,6 +50,12 @@ B="https://gh-proxy.com/https://raw.githubusercontent.com/BadFatCat0919/opencann
 $B="https://gh-proxy.com/https://raw.githubusercontent.com/BadFatCat0919/opencannbot/main"; $env:CANNBOT_REPO_RAW=$B; irm "$B/install-cannbot-provider.ps1" | iex
 ```
 
+> **opencode 版本说明**：安装脚本会自动识别版本并选择插件布局。opencode 2.x 使用 V2 插件
+> （`cannbot-v2/index.js`，安装到 `plugins/cannbot/`，无需修改配置）；opencode 1.x 继续使用
+> `cannbot-auth.js` / `cannbot-pro-auth.js`。两类插件互不兼容，若启动时报
+> `Plugin must export a default definition with an id and an effect or setup function.`，
+> 说明 2.x 仍在加载 1.x 插件，重跑安装脚本即可。
+
 ### 配置
 
 安装完成后重启 opencode，输入 `/connect`，选择 **CANNBOT**（标准模型）或 **CANNBOT-Pro**（Claude Opus / GPT，仅内测用户开放）并填入你的 VK。两个 provider 使用独立的 VK，可以分别配置：
@@ -58,6 +64,17 @@ $B="https://gh-proxy.com/https://raw.githubusercontent.com/BadFatCat0919/opencan
 /connect → CANNBOT      → 填入标准 VK（DeepSeek / GLM / Qwen）
 /connect → CANNBOT-Pro  → 填入 Pro VK（Claude Opus 4.8 / GPT 5.4）
 ```
+
+opencode 2.x 中模型在 VK 连接完成后才会出现在模型列表里（连接后无需重启）。
+
+脚本化运行（非交互）请在 `opencode.json` 中指定模型，而不是 `opencode run --model`：
+
+```json
+{ "$schema": "https://opencode.ai/config.json", "model": "cannbot/deepseek-v4-pro" }
+```
+
+原因：`--model` 会在 CLI 本地目录中校验模型，此时插件尚未在该进程生效，会报 `Model unavailable`；
+TUI 与 `/api/session/{id}/model` 走服务端目录，均正常。
 
 ### 验证
 
@@ -283,9 +300,10 @@ npm run package       # 打包 .vsix
 
 | 文件 | 作用 |
 |------|------|
-| `cannbot-auth.js` | OpenCode provider 插件（标准模型：DeepSeek / GLM / Qwen） |
-| `cannbot-pro-auth.js` | OpenCode provider 插件（Pro 模型：Claude Opus / GPT，独立 VK） |
-| `install-cannbot-provider.sh` / `.ps1` | 一键把两个插件装进 opencode |
+| `cannbot-auth.js` | OpenCode 1.x provider 插件（标准模型：DeepSeek / GLM / Qwen） |
+| `cannbot-pro-auth.js` | OpenCode 1.x provider 插件（Pro 模型：Claude Opus / GPT，独立 VK） |
+| `cannbot-v2/index.js` | OpenCode 2.x V2 插件（`export default { id, setup }`，含两个 provider） |
+| `install-cannbot-provider.sh` / `.ps1` | 一键安装；按 opencode 版本自动选择 V2 / 1.x 插件布局 |
 | `cannbot-proxy.py` | Trae IDE 用的本地运行组件 |
 | `install-cannbot-trae.sh` / `.ps1` | 一键安装 Trae 组件（macOS / Linux / Windows） |
 | `uninstall-cannbot-trae.sh` | 卸载 Trae 组件 |
